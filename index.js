@@ -74,12 +74,11 @@ async function run() {
 
 
 
-    // all bookings data  read
+    // all bookings data read
     app.get("/bookings", async (req, res) => {
       const result = await appointmentCollection.find().toArray();
       res.json(result);
     });
-
 
 
     // booking new booking api
