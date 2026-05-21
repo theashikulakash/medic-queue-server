@@ -109,6 +109,22 @@ app.post("/bookings", verifyToken, async (req, res) => {
   }
 });
 
+// booking update api
+app.patch("/bookings/:bookingId", verifyToken, async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const updatedData = req.body;
+    const database = await getDb();
+    const result = await database.collection("appointment").updateOne(
+      { _id: new ObjectId(bookingId) },
+      { $set: updatedData }
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Booking delete api
 app.delete("/bookings/:bookingId", verifyToken, async (req, res) => {
   try {
