@@ -6,12 +6,14 @@ const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 dotenv.config();
 
 const uri = process.env.MONGODB_URI;
-
 const app = express();
+
 app.use(cors());
 app.use(express.json());
-const PORT = process.env.PORT;
 
+const PORT = process.env.PORT || 5000;
+
+// Create a single client instance outside the handler for connection pooling
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -20,8 +22,17 @@ const client = new MongoClient(uri, {
   }
 });
 
+// Helper function to get DB cleanly on serverless invocations
+let db;
+async function getDb() {
+  if (!db) {
+    await client.connect();
+    db = client.db("medicqueue");
+  }
+  return db;
+}
 
-
+// JWT Auth Middleware
 const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`));
 
 const verifyToken = async (req, res, next) => {
@@ -36,125 +47,106 @@ const verifyToken = async (req, res, next) => {
 
   try {
     const { payload } = await jwtVerify(token, JWKS);
-    console.log(payload);
+    req.user = payload; // Attach user payload to request
     next();
   } catch (error) {
     return res.status(403).json({ message: "Forbidden" });
   }
 };
 
+// --- ROUTES ---
 
-async function run() {
-  try {
-    // create db or call db
-    await client.connect();
-
-    const db = client.db("medicqueue")
-    const doctorsCollection = db.collection("doctors")
-    const appointmentCollection = db.collection("appointment")
-    const usersCollection = db.collection("users")
-
-    // all doctors data 
-    app.get("/appointment", async (req, res) => {
-      const result = await doctorsCollection.find().toArray();
-      res.json(result);
-    });
-
-    // doctors info id wise
-    app.get("/appointment/:id", async (req, res) => {
-      const { id } = req.params;
-
-      const result = await doctorsCollection.findOne({
-        _id: new ObjectId(id),
-      });
-
-      res.json(result);
-    });
-
-
-
-
-    // all bookings data read
-    app.get("/bookings", async (req, res) => {
-      const result = await appointmentCollection.find().toArray();
-      res.json(result);
-    });
-
-
-    // booking new booking api
-    app.post("/bookings", verifyToken, async (req, res) => {
-      const appointmentData = req.body;
-      const result = await appointmentCollection.insertOne(appointmentData);
-
-      res.status(201).json(result);
-    });
-
-    // booking delete api
-    app.delete("/bookings/:bookingId", verifyToken, async (req, res) => {
-      const { bookingId } = req.params;
-      const result = await appointmentCollection.deleteOne({
-        _id: new ObjectId(bookingId),
-      });
-
-      res.json(result);
-    });
-
-    // user profile update api
-    app.patch("/users/:email", verifyToken, async (req, res) => {
-      const { email } = req.params;
-      const updatedData = req.body;
-      console.log("Updating user profile:", email, updatedData);
-
-      const result = await usersCollection.updateOne(
-        { email: email },
-        { $set: { ...updatedData, email } },
-        { upsert: true }
-      );
-      res.json(result);
-    });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
-  }
-}
-run().catch(console.dir);
-
-
+// Base test route
 app.get("/", (req, res) => {
   res.send("Server is running fine!");
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// All doctors data 
+app.get("/appointment", async (req, res) => {
+  try {
+    const database = await getDb();
+    const result = await database.collection("doctors").find().toArray();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
+
+// Doctors info id wise
+app.get("/appointment/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const database = await getDb();
+    const result = await database.collection("doctors").findOne({
+      _id: new ObjectId(id),
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// All bookings data read
+app.get("/bookings", async (req, res) => {
+  try {
+    const database = await getDb();
+    const result = await database.collection("appointment").find().toArray();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Booking new booking api
+app.post("/bookings", verifyToken, async (req, res) => {
+  try {
+    const appointmentData = req.body;
+    const database = await getDb();
+    const result = await database.collection("appointment").insertOne(appointmentData);
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Booking delete api
+app.delete("/bookings/:bookingId", verifyToken, async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const database = await getDb();
+    const result = await database.collection("appointment").deleteOne({
+      _id: new ObjectId(bookingId),
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// User profile update api
+app.patch("/users/:email", verifyToken, async (req, res) => {
+  try {
+    const { email } = req.params;
+    const updatedData = req.body;
+    const database = await getDb();
+    
+    const result = await database.collection("users").updateOne(
+      { email: email },
+      { $set: { ...updatedData, email } },
+      { upsert: true }
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Export for Vercel Serverless environment
+module.exports = app;
+
+// Keep listen block for local development fallback
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
