@@ -138,6 +138,23 @@ app.delete("/bookings/:bookingId", verifyToken, async (req, res) => {
   }
 });
 
+// user profile fetch api
+app.get("/user/:email", verifyToken, async (req, res) => {
+  try {
+    const { email } = req.params;
+    const database = await getDb();
+    const user = await database.collection("user").findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // user profile update api
 app.patch("/user/:email", verifyToken, async (req, res) => {
   try {
