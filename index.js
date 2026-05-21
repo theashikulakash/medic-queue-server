@@ -13,7 +13,6 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
 
-// Create a single client instance outside the handler for connection pooling
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -22,7 +21,7 @@ const client = new MongoClient(uri, {
   }
 });
 
-// Helper function to get DB cleanly on serverless invocations
+// serverless invocations
 let db;
 async function getDb() {
   if (!db) {
@@ -32,7 +31,7 @@ async function getDb() {
   return db;
 }
 
-// JWT Auth Middleware
+// JWT Auth verifyToken
 const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`));
 
 const verifyToken = async (req, res, next) => {
@@ -56,12 +55,12 @@ const verifyToken = async (req, res, next) => {
 
 // --- ROUTES ---
 
-// Base test route
+// test route
 app.get("/", (req, res) => {
   res.send("Server is running fine!");
 });
 
-// All doctors data 
+// all doctors data 
 app.get("/appointment", async (req, res) => {
   try {
     const database = await getDb();
@@ -72,7 +71,7 @@ app.get("/appointment", async (req, res) => {
   }
 });
 
-// Doctors info id wise
+// doctors info id wise
 app.get("/appointment/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -86,7 +85,7 @@ app.get("/appointment/:id", async (req, res) => {
   }
 });
 
-// All bookings data read
+// all bookings data read
 app.get("/bookings", async (req, res) => {
   try {
     const database = await getDb();
@@ -97,7 +96,7 @@ app.get("/bookings", async (req, res) => {
   }
 });
 
-// Booking new booking api
+// booking new booking api
 app.post("/bookings", verifyToken, async (req, res) => {
   try {
     const appointmentData = req.body;
@@ -125,7 +124,7 @@ app.patch("/bookings/:bookingId", verifyToken, async (req, res) => {
   }
 });
 
-// Booking delete api
+// booking delete api
 app.delete("/bookings/:bookingId", verifyToken, async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -139,16 +138,19 @@ app.delete("/bookings/:bookingId", verifyToken, async (req, res) => {
   }
 });
 
-// User profile update api
-app.patch("/users/:email", verifyToken, async (req, res) => {
+// user profile update api
+app.patch("/user/:email", verifyToken, async (req, res) => {
   try {
     const { email } = req.params;
-    const updatedData = req.body;
+    const { email: newEmail, name, gender, phone } = req.body;
     const database = await getDb();
     
-    const result = await database.collection("users").updateOne(
+    // Use the new email if provided, otherwise keep the old one
+    const updatedEmail = newEmail || email;
+    
+    const result = await database.collection("user").updateOne(
       { email: email },
-      { $set: { ...updatedData, email } },
+      { $set: { email: updatedEmail, name, gender, phone } },
       { upsert: true }
     );
     res.json(result);
@@ -157,10 +159,14 @@ app.patch("/users/:email", verifyToken, async (req, res) => {
   }
 });
 
-// Export for Vercel Serverless environment
+
+
+
 module.exports = app;
 
-// Keep listen block for local development fallback
+
+
+
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
