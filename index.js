@@ -55,13 +55,13 @@ async function run() {
     const usersCollection = db.collection("users")
 
     // all doctors data 
-    app.get("/doctors", async (req, res) => {
+    app.get("/appointment", async (req, res) => {
       const result = await doctorsCollection.find().toArray();
       res.json(result);
     });
 
     // doctors info id wise
-    app.get("/doctors/:id", async (req, res) => {
+    app.get("/appointment/:id", async (req, res) => {
       const { id } = req.params;
 
       const result = await doctorsCollection.findOne({
@@ -74,24 +74,24 @@ async function run() {
 
 
 
-    // all appointment data  read
-    app.get("/appointments", async (req, res) => {
+    // all bookings data  read
+    app.get("/bookings", async (req, res) => {
       const result = await appointmentCollection.find().toArray();
       res.json(result);
     });
 
 
 
-    // appointment booking api
-    app.post("/appointment", verifyToken, async (req, res) => {
+    // booking new booking api
+    app.post("/bookings", verifyToken, async (req, res) => {
       const appointmentData = req.body;
       const result = await appointmentCollection.insertOne(appointmentData);
 
       res.status(201).json(result);
     });
 
-    // appointment delete api
-    app.delete("/appointment/:bookingId", verifyToken, async (req, res) => {
+    // booking delete api
+    app.delete("/bookings/:bookingId", verifyToken, async (req, res) => {
       const { bookingId } = req.params;
       const result = await appointmentCollection.deleteOne({
         _id: new ObjectId(bookingId),
@@ -111,10 +111,6 @@ async function run() {
         { $set: { ...updatedData, email } },
         { upsert: true }
       );
-
-
-      
-
       res.json(result);
     });
 
