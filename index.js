@@ -159,18 +159,80 @@ app.get("/user/:email", verifyToken, async (req, res) => {
 app.patch("/user/:email", verifyToken, async (req, res) => {
   try {
     const { email } = req.params;
-    const { email: newEmail, name, gender, phone } = req.body;
+    const { email: newEmail, name, gender, phone, image } = req.body;
     const database = await getDb();
-    
+
     // Use the new email if provided, otherwise keep the old one
     const updatedEmail = newEmail || email;
-    
+
     const result = await database.collection("user").updateOne(
       { email: email },
-      { $set: { email: updatedEmail, name, gender, phone } },
+      { $set: { email: updatedEmail, name, gender, phone, image } },
       { upsert: true }
     );
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// post review api
+app.post("/reviews", verifyToken, async (req, res) => {
+  try {
+    const { doctorId, reviewText, stars } = req.body;
+    const userEmail = req.user.email;
+
+    // Validate input
+    if (!doctorId || !reviewText || stars === undefined) {
+      return res.status(400).json({ message: "Missing required fields: doctorId, reviewText, stars" });
+    }
+
+    if (typeof stars !== 'number' || stars < 0 || stars > 5) {
+      return res.status(400).json({ message: "Stars must be a number between 0 and 5" });
+    }
+
+    if (typeof reviewText !== 'string' || reviewText.trim() === '') {
+      return res.status(400).json({ message: "Review text cannot be empty" });
+    }
+
+    const database = await getDb();
+    const reviewData = {
+      doctorId: new ObjectId(doctorId),
+      userEmail,
+      reviewText: reviewText.trim(),
+      stars,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await database.collection("reviews").insertOne(reviewData);
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// get reviews for a specific doctor
+app.get("/reviews/:doctorId", async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const database = await getDb();
+    const reviews = await database
+      .collection("reviews")
+      .find({ doctorId: new ObjectId(doctorId) })
+      .toArray();
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// get all reviews
+app.get("/reviews", async (req, res) => {
+  try {
+    const database = await getDb();
+    const reviews = await database.collection("reviews").find().toArray();
+    res.json(reviews);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
